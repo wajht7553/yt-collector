@@ -31,7 +31,7 @@ Runtime dependencies:
 
 ## Configuration
 
-Edit `project.yaml` to define your dataset and download behavior:
+Copy `project.example.yaml` to `project.yaml` and edit it to define your dataset and download behavior:
 
 ```yaml
 project:

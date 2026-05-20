@@ -1,0 +1,26 @@
+# Project configuration template (copy to project.yaml and edit)
+
+project:
+  name: "My Dataset"  # Any string label for this dataset
+  description: "Short description"  # Optional short description
+  target_per_class: 200  # Integer target count per class (e.g., 100, 300)
+  resolution: 720  # Max height in pixels (e.g., 360, 480, 720, 1080)
+  max_duration_seconds: 3600  # Max video length in seconds
+  browser: chrome  # chrome | edge | firefox (cookies-from-browser)
+  cookies_file: ""  # Path to cookies.txt (optional)
+  enable_remote_components: true  # true/false; allow yt-dlp JS solver
+  sleep_interval: [10, 20]  # Random sleep seconds per download [min, max]
+  output_dir: "./data"  # Output directory path
+
+classes:
+  Class_1:
+    description: "What this class represents"
+    keywords:
+      core:
+        - "keyword 1"
+        - "keyword 2"
+  Class_2:
+    description: "Another class"
+    keywords:
+      - "keyword 3"
+      - "keyword 4"
