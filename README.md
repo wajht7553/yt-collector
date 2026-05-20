@@ -77,6 +77,12 @@ python collect.py dedup
 python collect.py clean
 ```
 
+If you are using this repo while it is under active development, pull updates periodically:
+
+```bash
+git pull
+```
+
 Optional flags:
 
 ```bash
