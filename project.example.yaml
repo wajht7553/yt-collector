@@ -19,6 +19,9 @@ classes:
       core:
         - "keyword 1"
         - "keyword 2"
+      extra:
+        - "keyword 3"
+        - "keyword 4"
   Class_2:
     description: "Another class"
     keywords:

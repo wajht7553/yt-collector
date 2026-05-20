@@ -46,7 +46,16 @@ project:
   output_dir: "./data"
 
 classes:
-  My_Class:
+  Class_1:
+    description: "What this class represents"
+    keywords:
+      category_1:
+        - "search keyword 1"
+        - "search keyword 2"
+      category_2:
+        - "search keyword 3"
+        - "search keyword 4"
+  Class_2:
     description: "What this class represents"
     keywords:
       category_1:
