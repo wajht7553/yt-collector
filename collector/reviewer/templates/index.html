@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Review Tool</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-primary: #0a0a0f;
+        --bg-secondary: #12121a;
+        --bg-card: #1a1a2e;
+        --bg-card-hover: #222240;
+        --accent-blue: #4f8cff;
+        --accent-green: #34d399;
+        --accent-red: #f87171;
+        --accent-amber: #fbbf24;
+        --text-primary: #e8e8f0;
+        --text-secondary: #9898b0;
+        --text-dim: #5a5a78;
+        --border: #2a2a40;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        min-height: 100vh;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-bottom: 1px solid var(--border);
+        padding: 16px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        backdrop-filter: blur(20px);
+      }
+
+      .header h1 {
+        font-size: 20px;
+        font-weight: 600;
+        background: linear-gradient(
+          135deg,
+          var(--accent-blue),
+          var(--accent-green)
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .header-stats {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+      }
+
+      .stat-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--text-secondary);
+        padding: 6px 12px;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        border: 1px solid var(--border);
+      }
+
+      .stat-badge .num {
+        font-weight: 700;
+        font-size: 15px;
+      }
+      .stat-badge.accepted .num {
+        color: var(--accent-green);
+      }
+      .stat-badge.rejected .num {
+        color: var(--accent-red);
+      }
+      .stat-badge.pending .num {
+        color: var(--accent-amber);
+      }
+
+      .filters {
+        padding: 10px 32px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .filter-btn {
+        padding: 7px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 13px;
+        font-family: "Inter", sans-serif;
+        transition: all 0.2s;
+      }
+
+      .filter-btn:hover {
+        border-color: var(--accent-blue);
+        color: var(--text-primary);
+      }
+      .filter-btn.active {
+        background: var(--accent-blue);
+        color: white;
+        border-color: var(--accent-blue);
+      }
+
+      .sep {
+        border-left: 1px solid var(--border);
+        margin: 0 4px;
+      }
+
+      .progress-bar-bg {
+        width: 100%;
+        height: 3px;
+        background: var(--border);
+      }
+      .progress-bar-fill {
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          var(--accent-blue),
+          var(--accent-green)
+        );
+        transition: width 0.3s;
+      }
+
+      .main {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .video-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        margin-bottom: 16px;
+        overflow: hidden;
+        transition: all 0.3s;
+      }
+
+      .video-card:hover {
+        border-color: #3a3a58;
+      }
+      .video-card.accepted {
+        border-color: var(--accent-green);
+        background: linear-gradient(
+          135deg,
+          rgba(52, 211, 153, 0.05),
+          var(--bg-card)
+        );
+      }
+      .video-card.rejected {
+        border-color: var(--accent-red);
+        background: linear-gradient(
+          135deg,
+          rgba(248, 113, 113, 0.05),
+          var(--bg-card)
+        );
+        opacity: 0.5;
+      }
+      .video-card.focused {
+        border-color: var(--accent-blue);
+        box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.2);
+      }
+
+      .video-poster {
+        width: 100%;
+        aspect-ratio: 16/9;
+        background: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        position: relative;
+      }
+
+      .video-poster .play-icon {
+        width: 64px;
+        height: 64px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(10px);
+        transition: transform 0.2s;
+      }
+
+      .video-poster:hover .play-icon {
+        transform: scale(1.1);
+      }
+
+      .play-icon::after {
+        content: "";
+        border-left: 22px solid white;
+        border-top: 13px solid transparent;
+        border-bottom: 13px solid transparent;
+        margin-left: 4px;
+      }
+
+      .video-player {
+        width: 100%;
+        max-height: 450px;
+        background: #000;
+        display: none;
+      }
+
+      .video-info {
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .video-meta {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .video-name {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .video-details {
+        font-size: 11px;
+        color: var(--text-dim);
+        display: flex;
+        gap: 8px;
+      }
+
+      .video-details span {
+        background: var(--bg-primary);
+        padding: 2px 7px;
+        border-radius: 4px;
+      }
+
+      .video-actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      .btn {
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-family: "Inter", sans-serif;
+        font-size: 12px;
+        font-weight: 600;
+        transition: all 0.2s;
+      }
+
+      .btn-accept {
+        background: linear-gradient(135deg, #059669, #34d399);
+        color: white;
+      }
+      .btn-accept:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(52, 211, 153, 0.3);
+      }
+      .btn-reject {
+        background: linear-gradient(135deg, #dc2626, #f87171);
+        color: white;
+      }
+      .btn-reject:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(248, 113, 113, 0.3);
+      }
+      .btn-undo {
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+      }
+      .btn-undo:hover {
+        border-color: var(--accent-blue);
+        color: var(--text-primary);
+      }
+
+      .status-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 5px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-left: 8px;
+      }
+
+      .status-tag.accepted {
+        background: rgba(52, 211, 153, 0.15);
+        color: var(--accent-green);
+      }
+      .status-tag.rejected {
+        background: rgba(248, 113, 113, 0.15);
+        color: var(--accent-red);
+      }
+
+      .pagination {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 16px 0 24px;
+      }
+
+      .page-btn {
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-family: "Inter", sans-serif;
+        font-size: 12px;
+        transition: all 0.2s;
+        min-width: 36px;
+      }
+
+      .page-btn:hover {
+        border-color: var(--accent-blue);
+        color: var(--text-primary);
+      }
+      .page-btn.active {
+        background: var(--accent-blue);
+        color: white;
+        border-color: var(--accent-blue);
+      }
+      .page-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 80px 20px;
+        color: var(--text-dim);
+      }
+
+      .empty-state h2 {
+        font-size: 22px;
+        margin-bottom: 8px;
+        color: var(--text-secondary);
+      }
+
+      .keyboard-hint {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 11px;
+        color: var(--text-dim);
+        backdrop-filter: blur(20px);
+        line-height: 1.6;
+      }
+
+      .keyboard-hint kbd {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-size: 10px;
+        color: var(--text-secondary);
+        font-family: "Inter", sans-serif;
+      }
+
+      .credit {
+        position: fixed;
+        bottom: 16px;
+        left: 16px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-size: 11px;
+        color: var(--text-dim);
+        backdrop-filter: blur(20px);
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1 id="project-title">Video Review Tool</h1>
+      <div class="header-stats">
+        <div class="stat-badge pending">
+          <span class="num" id="s-pending">0</span> Pending
+        </div>
+        <div class="stat-badge accepted">
+          <span class="num" id="s-accepted">0</span> Accepted
+        </div>
+        <div class="stat-badge rejected">
+          <span class="num" id="s-rejected">0</span> Rejected
+        </div>
+        <div class="stat-badge">
+          <span class="num" id="s-total">0</span> Total
+        </div>
+      </div>
+    </div>
+
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-bar"></div>
+    </div>
+
+    <div class="filters" id="filters"></div>
+
+    <div class="main" id="video-list"></div>
+
+    <div class="pagination" id="pagination"></div>
+
+    <div class="credit">
+      Vibe Coded by Wajahat Ullah 🤍<br>
+      SKKU Applied AI, VIS2Know Lab
+    </div>
+
+    <div class="keyboard-hint">
+      <kbd>A</kbd> Accept &nbsp; <kbd>R</kbd> Reject &nbsp;
+      <kbd>U</kbd> Undo<br />
+      <kbd>&darr;</kbd> Next &nbsp; <kbd>&uarr;</kbd> Prev &nbsp;
+      <kbd>Space</kbd> Play
+    </div>
+
+    <script>
+      const PAGE_SIZE = {{PAGE_SIZE}};
+      let allVideos = [];
+      let decisions = {};
+      let statusFilter = 'all';
+      let classFilter = 'all';
+      let currentPage = 0;
+      let focusedIdx = 0;
+      let classList = [];
+
+      async function init() {
+        const [vRes, dRes, cRes] = await Promise.all([
+          fetch('/api/videos'),
+          fetch('/api/decisions'),
+          fetch('/api/config'),
+        ]);
+        allVideos = await vRes.json();
+        decisions = await dRes.json();
+        const config = await cRes.json();
+
+        document.getElementById('project-title').textContent = config.name + ' — Review';
+        classList = config.classes;
+        buildFilters();
+        render();
+      }
+
+      function buildFilters() {
+        const el = document.getElementById('filters');
+        const statusBtns = ['all', 'pending', 'accepted', 'rejected'];
+        let html = statusBtns.map(s =>
+          `<button class="filter-btn ${s === 'all' ? 'active' : ''}" data-filter="status" data-val="${s}">${s[0].toUpperCase()+s.slice(1)}</button>`
+        ).join('');
+
+        html += '<span class="sep"></span>';
+        html += `<button class="filter-btn active" data-filter="class" data-val="all">All Classes</button>`;
+        classList.forEach(c => {
+          html += `<button class="filter-btn" data-filter="class" data-val="${c}">${c.replace(/_/g, ' ')}</button>`;
+        });
+        el.innerHTML = html;
+        el.addEventListener('click', e => {
+          const btn = e.target.closest('.filter-btn');
+          if (!btn) return;
+          const type = btn.dataset.filter;
+          const val = btn.dataset.val;
+          if (type === 'status') { statusFilter = val; }
+          else { classFilter = val; }
+          el.querySelectorAll(`.filter-btn[data-filter="${type}"]`).forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentPage = 0;
+          render();
+        });
+      }
+
+      function getFiltered() {
+        return allVideos.filter(v => {
+          const st = getStatus(v);
+          if (statusFilter !== 'all' && st !== statusFilter) return false;
+          if (classFilter !== 'all' && v.cls !== classFilter) return false;
+          return true;
+        });
+      }
+
+      function render() {
+        const filtered = getFiltered();
+        updateStats(filtered);
+        const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+        if (currentPage > pageCount - 1) currentPage = pageCount - 1;
+        const start = currentPage * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
+        const visible = filtered.slice(start, end);
+        if (focusedIdx >= visible.length) focusedIdx = Math.max(0, visible.length - 1);
+
+        const container = document.getElementById('video-list');
+        if (visible.length === 0) {
+          container.innerHTML = '<div class="empty-state"><h2>No videos</h2><p>No videos match the current filter.</p></div>';
+          renderPagination(0, 0);
+          return;
+        }
+
+        container.innerHTML = visible.map((v, i) => {
+          const st = getStatus(v);
+          const stClass = st !== 'pending' ? st : '';
+          const focus = i === focusedIdx ? ' focused' : '';
+          const tag = st !== 'pending' ? `<span class="status-tag ${st}">${st}</span>` : '';
+          const btns = st === 'pending'
+            ? `<button class="btn btn-accept" onclick="decide('${esc(v.path)}','accepted')">&#10003; Accept</button>
+               <button class="btn btn-reject" onclick="decide('${esc(v.path)}','rejected')">&#10007; Reject</button>`
+            : `<button class="btn btn-undo" onclick="decide('${esc(v.path)}','pending')">&#8634; Undo</button>`;
+
+          return `
+            <div class="video-card ${stClass}${focus}" id="card-${i}" data-idx="${i}">
+              <div class="video-poster" onclick="playVideo(this, '${esc(v.path)}')">
+                <div class="play-icon"></div>
+              </div>
+              <video class="video-player" controls preload="none"></video>
+              <div class="video-info">
+                <div class="video-meta">
+                  <div class="video-name">${v.name}${tag}</div>
+                  <div class="video-details">
+                    <span>${v.cls.replace(/_/g, ' ')}</span>
+                    <span>${v.size_mb} MB</span>
+                  </div>
+                </div>
+                <div class="video-actions">${btns}</div>
+              </div>
+            </div>`;
+        }).join('');
+
+        renderPagination(pageCount, currentPage);
+      }
+
+      function esc(p) { return p.replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+      function playVideo(poster, path) {
+        const card = poster.closest('.video-card');
+        const video = card.querySelector('.video-player');
+        poster.style.display = 'none';
+        video.style.display = 'block';
+        video.src = '/video/' + encodeURIComponent(path);
+        video.play();
+      }
+
+      function setFocus(idx) {
+        const next = document.getElementById('card-' + idx);
+        if (!next) return;
+        const prev = document.getElementById('card-' + focusedIdx);
+        if (prev) prev.classList.remove('focused');
+        focusedIdx = idx;
+        next.classList.add('focused');
+      }
+
+      function pageButton(page, label, isActive, isDisabled) {
+        const cls = isActive ? 'page-btn active' : 'page-btn';
+        const disabledAttr = isDisabled ? 'disabled' : '';
+        const clickAttr = isDisabled ? '' : `onclick="setPage(${page})"`;
+        return `<button class="${cls}" ${clickAttr} ${disabledAttr}>${label}</button>`;
+      }
+
+      function renderPagination(pageCount, activePage) {
+        const el = document.getElementById('pagination');
+        if (pageCount <= 1) {
+          el.innerHTML = '';
+          return;
+        }
+        const lastPage = pageCount - 1;
+        const showPrev = activePage > 1;
+        const showNext = activePage < lastPage - 1;
+        let html = '';
+
+        html += pageButton(0, '1', activePage === 0, activePage === 0);
+        if (showPrev) {
+          html += pageButton(activePage - 1, '&lt;', false, false);
+        }
+        if (activePage !== 0 && activePage !== lastPage) {
+          html += pageButton(activePage, String(activePage + 1), true, true);
+        }
+        if (showNext) {
+          html += pageButton(activePage + 1, '&gt;', false, false);
+        }
+        if (lastPage !== 0) {
+          html += pageButton(lastPage, String(lastPage + 1), activePage === lastPage, activePage === lastPage);
+        }
+
+        el.innerHTML = html;
+      }
+
+      function setPage(page) {
+        currentPage = page;
+        focusedIdx = 0;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        render();
+      }
+
+      function updateStats() {
+        let a = 0, r = 0, p = 0;
+        const scope = arguments.length ? arguments[0] : allVideos;
+        scope.forEach(v => {
+          const s = getStatus(v);
+          if (s === 'accepted') a++;
+          else if (s === 'rejected') r++;
+          else p++;
+        });
+        document.getElementById('s-pending').textContent = p;
+        document.getElementById('s-accepted').textContent = a;
+        document.getElementById('s-rejected').textContent = r;
+        document.getElementById('s-total').textContent = scope.length;
+        const reviewed = a + r;
+        document.getElementById('progress-bar').style.width =
+          (scope.length > 0 ? reviewed / scope.length * 100 : 0) + '%';
+      }
+
+      function getStatus(v) {
+        return decisions[v.path] || v.status_hint || 'pending';
+      }
+
+      async function decide(path, status) {
+        if (status === 'pending') delete decisions[path];
+        else decisions[path] = status;
+        await fetch('/api/decide', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path, status}),
+        });
+        render();
+      }
+
+      document.addEventListener('keydown', e => {
+        const filtered = getFiltered();
+        const start = currentPage * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
+        const visible = filtered.slice(start, end);
+        if (!visible.length) return;
+
+        if (e.key === 'ArrowDown' || e.key === 'j') {
+          e.preventDefault();
+          focusedIdx = Math.min(focusedIdx + 1, visible.length - 1);
+          document.getElementById('card-' + focusedIdx)?.scrollIntoView({behavior: 'smooth', block: 'center'});
+          render();
+        } else if (e.key === 'ArrowUp' || e.key === 'k') {
+          e.preventDefault();
+          focusedIdx = Math.max(focusedIdx - 1, 0);
+          document.getElementById('card-' + focusedIdx)?.scrollIntoView({behavior: 'smooth', block: 'center'});
+          render();
+        } else if (e.key === 'a' || e.key === 'A') {
+          if (visible[focusedIdx]) decide(visible[focusedIdx].path, 'accepted');
+        } else if (e.key === 'r' || e.key === 'R') {
+          if (visible[focusedIdx]) decide(visible[focusedIdx].path, 'rejected');
+        } else if (e.key === 'u' || e.key === 'U') {
+          if (visible[focusedIdx]) decide(visible[focusedIdx].path, 'pending');
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          const card = document.getElementById('card-' + focusedIdx);
+          if (card) {
+            const poster = card.querySelector('.video-poster');
+            if (poster && poster.style.display !== 'none') {
+              poster.click();
+            } else {
+              const video = card.querySelector('.video-player');
+              if (video) video.paused ? video.play() : video.pause();
+            }
+          }
+        }
+      });
+
+      document.getElementById('video-list').addEventListener('click', e => {
+        const card = e.target.closest('.video-card');
+        if (!card) return;
+        const idx = Number(card.dataset.idx);
+        if (!Number.isNaN(idx)) setFocus(idx);
+      });
+
+      init();
+    </script>
+  </body>
+</html>

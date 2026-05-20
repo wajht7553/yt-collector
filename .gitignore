@@ -1,0 +1,22 @@
+env/
+__pycache__/
+*.pyc
+
+# Large media files (track with Git LFS or exclude)
+data/
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.webm
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+
+collection_summary.md
+data_collection_guidelines.md
+keyword_tracker.csv
+cookies.txt
+Stra*/
