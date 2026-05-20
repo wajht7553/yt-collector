@@ -4,8 +4,10 @@ YouTube video download engine using yt-dlp.
 
 import json
 import os
+import random
 import subprocess
 import sys
+import time
 
 from . import config as cfg
 from . import logger
@@ -41,6 +43,21 @@ def _handle_bot_block(result):
         print("  [ERROR] YouTube blocked the request: sign-in required to confirm you are not a bot.")
         print("  Provide cookies or a cookies file and retry.")
         sys.exit(1)
+
+
+def _sleep_between(min_seconds, max_seconds):
+    """Sleep for a random interval between downloads."""
+    if min_seconds is None or max_seconds is None:
+        return
+    min_s = max(0, float(min_seconds))
+    max_s = max(0, float(max_seconds))
+    if max_s < min_s:
+        max_s = min_s
+    if max_s == 0:
+        return
+    delay = random.uniform(min_s, max_s)
+    print(f"  Sleeping {delay:.1f}s...")
+    time.sleep(delay)
 
 
 def _find_ytdlp():
@@ -164,19 +181,24 @@ def _list_video_basenames(output_dir):
     return basenames
 
 
-def _filter_entries_for_files(entries, new_basenames):
-    """Filter metadata entries to those that match newly downloaded files."""
-    if not entries or not new_basenames:
-        return []
-    matched = []
-    for entry in entries:
-        vid = entry.get("id")
-        if not vid:
-            continue
-        suffix = f"_{vid}"
-        if any(base.endswith(suffix) for base in new_basenames):
-            matched.append(entry)
-    return matched
+def _list_video_ids(output_dir):
+    """Return a set of video IDs inferred from existing filenames."""
+    ids = set()
+    for base in _list_video_basenames(output_dir):
+        if "_" in base:
+            ids.add(base.rsplit("_", 1)[-1])
+    return ids
+
+
+def _video_exists_for_id(output_dir, video_id):
+    """Check if a video file exists for the given ID."""
+    if not video_id:
+        return False
+    suffix = f"_{video_id}".lower()
+    for base in _list_video_basenames(output_dir):
+        if base.lower().endswith(suffix):
+            return True
+    return False
 
 
 def download_keyword(config, keyword, class_name, max_downloads=10):
@@ -200,44 +222,63 @@ def download_keyword(config, keyword, class_name, max_downloads=10):
     print(f"  Output   : {output_dir}")
     print(f"{'='*60}")
 
-    before_files = _list_video_basenames(output_dir)
+    existing_ids = _list_video_ids(output_dir)
+    entries = get_metadata(keyword, max_downloads, is_search=True)
+    if not entries:
+        print("  [WARN] No metadata results. Skipping download.")
+        return 0
 
-    print("  Downloading videos...")
-    cmd = [
-        *_ytdlp_cmd(),
-        "--max-downloads", str(max_downloads),
-        "-o", output_template,
-        "--restrict-filenames",
-        "--no-playlist",
-        "--format", video_format,
-        "--format-sort", "res,ext",
-        "--merge-output-format", "mp4",
-        "--no-overwrites",
-        "--sleep-interval", str(sleep_min),
-        "--max-sleep-interval", str(sleep_max),
-        *_cookie_args(),
-        *_duration_filter_args(max_duration),
-        search_query,
-    ]
-    if enable_remote:
-        cmd += ["--remote-components", "ejs:github"]
+    candidates = []
+    for entry in entries:
+        vid = entry.get("id")
+        url = entry.get("webpage_url") or entry.get("url")
+        if not vid or not url:
+            continue
+        if vid in existing_ids:
+            continue
+        candidates.append(entry)
+        if len(candidates) >= max_downloads:
+            break
 
-    result = subprocess.run(cmd)
-    _handle_bot_block(result)
-    after_files = _list_video_basenames(output_dir)
-    new_files = after_files - before_files
-    new_videos = len(new_files)
+    if not candidates:
+        print("  No new videos to download (all results already present).")
+        return 0
 
-    if new_videos > 0:
-        print(f"  Logging metadata for {new_videos} new videos...")
-        entries = get_metadata(keyword, max_downloads, is_search=True)
-        matched = _filter_entries_for_files(entries, new_files)
-        if matched:
-            logger.log_entries(config, class_name, matched, keyword)
+    print(f"  Downloading {len(candidates)} new videos...")
+    new_videos = 0
+    for idx, entry in enumerate(candidates, 1):
+        url = entry.get("webpage_url") or entry.get("url")
+        print(f"  [{idx}/{len(candidates)}] {url}")
+        cmd = [
+            *_ytdlp_cmd(),
+            "-o", output_template,
+            "--restrict-filenames",
+            "--no-playlist",
+            "--format", video_format,
+            "--format-sort", "res,ext",
+            "--merge-output-format", "mp4",
+            "--no-overwrites",
+            *_cookie_args(),
+            *_duration_filter_args(max_duration),
+            url,
+        ]
+        if enable_remote:
+            cmd += ["--remote-components", "ejs:github"]
+
+        result = subprocess.run(cmd)
+        _handle_bot_block(result)
+
+        if _video_exists_for_id(output_dir, entry.get("id")):
+            logger.log_entries(config, class_name, [entry], keyword)
+            new_videos += 1
+            existing_ids.add(entry.get("id"))
         else:
-            logger.log_simple(config, class_name, f"YouTube search: {keyword}", new_videos)
+            print("  [WARN] Download failed or was skipped.")
 
-    print(f"  Done. +{new_videos} new videos (exit code: {result.returncode})")
+        if idx < len(candidates):
+            _sleep_between(sleep_min, sleep_max)
+
+    print(f"  Done. +{new_videos} new videos")
     return new_videos
 
 
@@ -255,7 +296,16 @@ def download_url(config, url, class_name):
     print(f"  Class: {class_name}")
     print(f"  Max duration: {max_duration}s")
 
-    before_files = _list_video_basenames(output_dir)
+    entries = get_metadata(url, is_search=False)
+    if not entries:
+        print("  [WARN] No metadata for URL. Skipping download.")
+        return 0
+
+    entry = entries[0]
+    vid = entry.get("id")
+    if vid and vid in _list_video_ids(output_dir):
+        print("  Already downloaded. Skipping.")
+        return 0
 
     cmd = [
         *_ytdlp_cmd(),
@@ -274,20 +324,14 @@ def download_url(config, url, class_name):
 
     result = subprocess.run(cmd)
     _handle_bot_block(result)
-    after_files = _list_video_basenames(output_dir)
-    new_files = after_files - before_files
-    new_videos = len(new_files)
 
-    if new_videos > 0:
-        entries = get_metadata(url, is_search=False)
-        matched = _filter_entries_for_files(entries, new_files)
-        if matched:
-            logger.log_entries(config, class_name, matched, url)
-        else:
-            logger.log_simple(config, class_name, url, 1)
+    if _video_exists_for_id(output_dir, vid):
+        logger.log_entries(config, class_name, [entry], url)
+        print("  Done. +1 new video")
+        return 1
 
-    print(f"  Done. +{new_videos} new videos (exit code: {result.returncode})")
-    return new_videos
+    print("  Done. +0 new videos")
+    return 0
 
 
 def bulk_download(config, class_name, max_per_keyword):
