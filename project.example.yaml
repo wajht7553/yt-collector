@@ -5,13 +5,23 @@ project:
   description: "Short description"  # Optional short description
   keywords_file: "./keywords/keywords_en.yaml"  # Language-specific keywords file (see keywords/ directory)
   target_per_class: 200  # Integer target count per class (e.g., 100, 300)
+  # Optional per-class target overrides:
+  # class_targets:
+  #   Class_1: 180
+  #   Class_2: 270
   resolution: 720  # Max height in pixels (e.g., 360, 480, 720, 1080)
+  min_duration_seconds: 0  # Minimum video length in seconds (0 = no minimum)
   max_duration_seconds: 3600  # Max video length in seconds
-  # If true, yt-dlp will download video-only streams (no audio)
+  # If true, collect only video links and metadata (links.txt + CSV) without downloading video files
+  links_only: false
+  # If true, yt-dlp will download video-only streams (no audio) when links_only is false
   video_only: true
   browser: chrome  # chrome | edge | firefox (cookies-from-browser)
   cookies_file: ""  # Path to cookies.txt (optional)
   enable_remote_components: true  # true/false; allow yt-dlp JS solver
   sleep_interval: [10, 20]  # Random sleep seconds per download [min, max]
   output_dir: "./data"  # Output directory path
-
+  # Optional list of case-insensitive terms to exclude from video titles during search:
+  # exclude_title_terms:
+  #   - "tutorial"
+  #   - "how to"

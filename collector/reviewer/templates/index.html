@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>Video Review Tool</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
@@ -48,6 +49,8 @@
         top: 0;
         z-index: 100;
         backdrop-filter: blur(20px);
+        flex-wrap: wrap;
+        gap: 12px;
       }
 
       .header h1 {
@@ -62,10 +65,45 @@
         -webkit-text-fill-color: transparent;
       }
 
-      .header-stats {
+      .header-controls {
         display: flex;
         gap: 16px;
         align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .header-stats {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .player-mode-toggle {
+        display: flex;
+        align-items: center;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 3px;
+        gap: 4px;
+      }
+
+      .mode-btn {
+        padding: 5px 10px;
+        border-radius: 6px;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 12px;
+        font-family: "Inter", sans-serif;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .mode-btn.active {
+        background: var(--accent-blue);
+        color: white;
+        font-weight: 600;
       }
 
       .stat-badge {
@@ -178,38 +216,58 @@
           rgba(248, 113, 113, 0.05),
           var(--bg-card)
         );
-        opacity: 0.5;
+        opacity: 0.55;
       }
       .video-card.focused {
         border-color: var(--accent-blue);
-        box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.2);
+        box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.25);
       }
 
       .video-poster {
         width: 100%;
         aspect-ratio: 16/9;
+        max-height: 460px;
         background: #000;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         position: relative;
+        overflow: hidden;
+      }
+
+      .video-poster img.thumb-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.82;
+        transition: opacity 0.2s, transform 0.3s;
+      }
+
+      .video-poster:hover img.thumb-img {
+        opacity: 0.95;
+        transform: scale(1.01);
       }
 
       .video-poster .play-icon {
-        width: 64px;
-        height: 64px;
-        background: rgba(255, 255, 255, 0.15);
+        position: absolute;
+        width: 68px;
+        height: 68px;
+        background: rgba(15, 23, 42, 0.75);
+        border: 2px solid rgba(255, 255, 255, 0.35);
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         backdrop-filter: blur(10px);
-        transition: transform 0.2s;
+        transition: transform 0.2s, background 0.2s;
+        z-index: 2;
       }
 
       .video-poster:hover .play-icon {
         transform: scale(1.1);
+        background: rgba(79, 140, 255, 0.85);
+        border-color: white;
       }
 
       .play-icon::after {
@@ -217,14 +275,54 @@
         border-left: 22px solid white;
         border-top: 13px solid transparent;
         border-bottom: 13px solid transparent;
-        margin-left: 4px;
+        margin-left: 5px;
+      }
+
+      .duration-badge {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        background: rgba(0, 0, 0, 0.82);
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        z-index: 2;
+      }
+
+      .video-embed-container {
+        width: 100%;
+        aspect-ratio: 16/9;
+        max-height: 460px;
+        background: #000;
+        display: none;
+        position: relative;
+      }
+
+      .video-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
       }
 
       .video-player {
         width: 100%;
-        max-height: 450px;
+        max-height: 460px;
+        aspect-ratio: 16/9;
         background: #000;
         display: none;
+      }
+
+      .stream-status {
+        width: 100%;
+        padding: 12px 18px;
+        background: rgba(79, 140, 255, 0.12);
+        color: var(--text-secondary);
+        font-size: 12px;
+        display: none;
+        align-items: center;
+        justify-content: space-between;
       }
 
       .video-info {
@@ -233,34 +331,58 @@
         justify-content: space-between;
         align-items: center;
         gap: 12px;
+        flex-wrap: wrap;
       }
 
       .video-meta {
         flex: 1;
-        min-width: 0;
+        min-width: 240px;
       }
 
       .video-name {
-        font-size: 13px;
-        font-weight: 500;
+        font-size: 14px;
+        font-weight: 600;
         color: var(--text-primary);
-        margin-bottom: 4px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
       }
 
       .video-details {
         font-size: 11px;
-        color: var(--text-dim);
+        color: var(--text-secondary);
         display: flex;
-        gap: 8px;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
       }
 
-      .video-details span {
+      .video-details span,
+      .video-details a.link-pill,
+      .video-details button.link-pill {
         background: var(--bg-primary);
-        padding: 2px 7px;
-        border-radius: 4px;
+        border: 1px solid var(--border);
+        padding: 3px 8px;
+        border-radius: 5px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 11px;
+        font-family: "Inter", sans-serif;
+      }
+
+      .video-details a.link-pill {
+        color: var(--accent-blue);
+        border-color: rgba(79, 140, 255, 0.35);
+        font-weight: 500;
+      }
+
+      .video-details a.link-pill:hover,
+      .video-details button.link-pill:hover {
+        border-color: var(--accent-blue);
+        color: #fff;
+        cursor: pointer;
       }
 
       .video-actions {
@@ -314,7 +436,6 @@
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin-left: 8px;
       }
 
       .status-tag.accepted {
@@ -385,6 +506,7 @@
         color: var(--text-dim);
         backdrop-filter: blur(20px);
         line-height: 1.6;
+        z-index: 50;
       }
 
       .keyboard-hint kbd {
@@ -409,24 +531,43 @@
         color: var(--text-dim);
         backdrop-filter: blur(20px);
         line-height: 1.4;
+        z-index: 50;
       }
     </style>
   </head>
   <body>
     <div class="header">
       <h1 id="project-title">Video Review Tool</h1>
-      <div class="header-stats">
-        <div class="stat-badge pending">
-          <span class="num" id="s-pending">0</span> Pending
+      <div class="header-controls">
+        <div class="player-mode-toggle" id="player-toggle" title="Choose how links play inside the card">
+          <button
+            class="mode-btn active"
+            id="mode-embed"
+            onclick="setPlayerMode('embed')"
+          >
+            YouTube Embed
+          </button>
+          <button
+            class="mode-btn"
+            id="mode-stream"
+            onclick="setPlayerMode('stream')"
+          >
+            Direct Stream (yt-dlp)
+          </button>
         </div>
-        <div class="stat-badge accepted">
-          <span class="num" id="s-accepted">0</span> Accepted
-        </div>
-        <div class="stat-badge rejected">
-          <span class="num" id="s-rejected">0</span> Rejected
-        </div>
-        <div class="stat-badge">
-          <span class="num" id="s-total">0</span> Total
+        <div class="header-stats">
+          <div class="stat-badge pending">
+            <span class="num" id="s-pending">0</span> Pending
+          </div>
+          <div class="stat-badge accepted">
+            <span class="num" id="s-accepted">0</span> Accepted
+          </div>
+          <div class="stat-badge rejected">
+            <span class="num" id="s-rejected">0</span> Rejected
+          </div>
+          <div class="stat-badge">
+            <span class="num" id="s-total">0</span> Total
+          </div>
         </div>
       </div>
     </div>
@@ -464,6 +605,13 @@
       let focusedIdx = 0;
       let classList = [];
       let languageList = [];
+      let playerMode = 'embed'; // 'embed' or 'stream'
+
+      function setPlayerMode(mode) {
+        playerMode = mode;
+        document.getElementById('mode-embed').classList.toggle('active', mode === 'embed');
+        document.getElementById('mode-stream').classList.toggle('active', mode === 'stream');
+      }
 
       async function init() {
         const [vRes, dRes, cRes] = await Promise.all([
@@ -478,7 +626,9 @@
         document.getElementById('project-title').textContent = config.name + ' — Review';
         classList = config.classes;
         languageList = config.languages || [];
-        languageFilter = languageList.includes(config.language) ? config.language : (languageList[0] || null);
+        languageFilter = languageList.includes(config.language)
+          ? config.language
+          : (languageList[0] || null);
         buildFilters();
         render();
       }
@@ -498,6 +648,7 @@
 
         if (languageList.length > 1) {
           html += '<span class="sep"></span>';
+          html += `<button class="filter-btn ${languageFilter === 'all' ? 'active' : ''}" data-filter="lang" data-val="all">ALL LANGS</button>`;
           languageList.forEach(l => {
             const active = l === languageFilter ? 'active' : '';
             html += `<button class="filter-btn ${active}" data-filter="lang" data-val="${l}">${l.toUpperCase()}</button>`;
@@ -525,20 +676,25 @@
           const st = getStatus(v);
           if (statusFilter !== 'all' && st !== statusFilter) return false;
           if (classFilter !== 'all' && v.cls !== classFilter) return false;
-          if (languageFilter && v.lang !== languageFilter) return false;
+          if (languageFilter && languageFilter !== 'all' && v.lang !== languageFilter) return false;
           return true;
         });
       }
 
-      // Badge counts ignore the status filter (All/Pending/Accepted/Rejected) so the
-      // four numbers stay stable while only the list below changes. They still scope
-      // to the selected class and language.
       function getBadgeScope() {
         return allVideos.filter(v => {
           if (classFilter !== 'all' && v.cls !== classFilter) return false;
-          if (languageFilter && v.lang !== languageFilter) return false;
+          if (languageFilter && languageFilter !== 'all' && v.lang !== languageFilter) return false;
           return true;
         });
+      }
+
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
       }
 
       function render() {
@@ -553,7 +709,7 @@
 
         const container = document.getElementById('video-list');
         if (visible.length === 0) {
-          container.innerHTML = '<div class="empty-state"><h2>No videos</h2><p>No videos match the current filter.</p></div>';
+          container.innerHTML = '<div class="empty-state"><h2>No videos</h2><p>No videos or links match the current filter.</p></div>';
           renderPagination(0, 0);
           return;
         }
@@ -568,19 +724,46 @@
                <button class="btn btn-reject" onclick="decide('${esc(v.path)}','rejected')">&#10007; Reject</button>`
             : `<button class="btn btn-undo" onclick="decide('${esc(v.path)}','pending')">&#8634; Undo</button>`;
 
+          const thumbImg = v.thumbnail
+            ? `<img class="thumb-img" src="${escapeHtml(v.thumbnail)}" alt="Thumbnail" loading="lazy" />`
+            : '';
+          const durBadge = v.duration
+            ? `<div class="duration-badge">${escapeHtml(v.duration)}</div>`
+            : '';
+          const sizeBadge = v.size_mb !== undefined
+            ? `<span>${v.size_mb} MB</span>`
+            : '';
+          const kwBadge = v.keyword
+            ? `<span title="Search keyword">🔍 ${escapeHtml(v.keyword)}</span>`
+            : '';
+          const chanBadge = v.channel && v.channel !== 'Unknown'
+            ? `<span>👤 ${escapeHtml(v.channel)}</span>`
+            : '';
+          const linkActions = !v.is_file && v.url
+            ? `<a class="link-pill" href="${escapeHtml(v.url)}" target="_blank" rel="noopener noreferrer" title="Open link in new tab">&#8599; YouTube</a>
+               <button class="link-pill" onclick="playDirectStream(${i})" title="Stream directly via yt-dlp in HTML5 player">&#9889; Direct Stream</button>`
+            : '';
+
           return `
-            <div class="video-card ${stClass}${focus}" id="card-${i}" data-idx="${i}">
-              <div class="video-poster" onclick="playVideo(this, '${esc(v.path)}')">
+            <div class="video-card ${stClass}${focus}" id="card-${i}" data-idx="${i}" data-isfile="${v.is_file ? '1' : '0'}" data-path="${escapeHtml(v.path)}" data-url="${escapeHtml(v.url || '')}" data-embed="${escapeHtml(v.embed_url || '')}">
+              <div class="video-poster" onclick="playItem(this, ${i})">
+                ${thumbImg}
                 <div class="play-icon"></div>
+                ${durBadge}
               </div>
+              <div class="video-embed-container"></div>
               <video class="video-player" controls preload="none"></video>
+              <div class="stream-status"></div>
               <div class="video-info">
                 <div class="video-meta">
-                  <div class="video-name">${v.name}${tag}</div>
+                  <div class="video-name">${escapeHtml(v.name)} ${tag}</div>
                   <div class="video-details">
-                    <span>${v.cls.replace(/_/g, ' ')}</span>
-                    <span>${(v.lang || '').toUpperCase()}</span>
-                    <span>${v.size_mb} MB</span>
+                    <span>${escapeHtml(v.cls.replace(/_/g, ' '))}</span>
+                    <span>${escapeHtml((v.lang || '').toUpperCase())}</span>
+                    ${sizeBadge}
+                    ${chanBadge}
+                    ${kwBadge}
+                    ${linkActions}
                   </div>
                 </div>
                 <div class="video-actions">${btns}</div>
@@ -591,15 +774,82 @@
         renderPagination(pageCount, currentPage);
       }
 
-      function esc(p) { return p.replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+      function esc(p) { return String(p || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
 
-      function playVideo(poster, path) {
-        const card = poster.closest('.video-card');
+      function playItem(poster, idx) {
+        const card = document.getElementById('card-' + idx);
+        if (!card) return;
+        if (card.dataset.isfile === '1') {
+          const video = card.querySelector('.video-player');
+          poster.style.display = 'none';
+          video.style.display = 'block';
+          video.src = '/video/' + encodeURIComponent(card.dataset.path);
+          video.play();
+          return;
+        }
+        const embedUrl = card.dataset.embed;
+        if (playerMode === 'embed' && embedUrl) {
+          playEmbed(card, embedUrl);
+        } else {
+          playDirectStream(idx);
+        }
+      }
+
+      function playEmbed(card, embedUrl) {
+        const poster = card.querySelector('.video-poster');
+        const embedBox = card.querySelector('.video-embed-container');
         const video = card.querySelector('.video-player');
-        poster.style.display = 'none';
-        video.style.display = 'block';
-        video.src = '/video/' + encodeURIComponent(path);
-        video.play();
+        const statusBox = card.querySelector('.stream-status');
+
+        if (video) {
+          video.pause();
+          video.style.display = 'none';
+        }
+        if (statusBox) statusBox.style.display = 'none';
+        if (poster) poster.style.display = 'none';
+
+        embedBox.style.display = 'block';
+        embedBox.innerHTML = `<iframe
+          class="video-iframe"
+          src="${embedUrl}"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen
+        ></iframe>`;
+      }
+
+      async function playDirectStream(idx) {
+        const card = document.getElementById('card-' + idx);
+        if (!card) return;
+        const url = card.dataset.url;
+        const poster = card.querySelector('.video-poster');
+        const embedBox = card.querySelector('.video-embed-container');
+        const video = card.querySelector('.video-player');
+        const statusBox = card.querySelector('.stream-status');
+
+        if (embedBox) {
+          embedBox.innerHTML = '';
+          embedBox.style.display = 'none';
+        }
+        if (poster) poster.style.display = 'none';
+
+        statusBox.style.display = 'flex';
+        statusBox.textContent = 'Resolving direct stream via yt-dlp...';
+
+        try {
+          const res = await fetch('/api/stream?url=' + encodeURIComponent(url));
+          const data = await res.json();
+          if (res.ok && data.stream_url) {
+            statusBox.style.display = 'none';
+            video.style.display = 'block';
+            video.src = data.stream_url;
+            video.play();
+          } else {
+            statusBox.innerHTML = `<span>Could not extract stream (${escapeHtml(data.error || 'error')}).</span> <a href="${escapeHtml(url)}" target="_blank" style="color:var(--accent-blue)">Open on YouTube &#8599;</a>`;
+          }
+        } catch (err) {
+          statusBox.innerHTML = `<span>Stream failed: ${escapeHtml(err.message)}</span> <a href="${escapeHtml(url)}" target="_blank" style="color:var(--accent-blue)">Open on YouTube &#8599;</a>`;
+        }
       }
 
       function setFocus(idx) {
@@ -684,19 +934,18 @@
         const { path: newPath } = await res.json();
 
         delete decisions[path];
+        const video = allVideos.find(v => v.path === path);
+        if (video) {
+          video.path = newPath;
+          video.status_hint = status === 'pending' ? '' : status;
+        }
         if (status !== 'pending') decisions[newPath] = status;
 
-        if (newPath !== path) {
-          const video = allVideos.find(v => v.path === path);
-          if (video) {
-            video.path = newPath;
-            video.status_hint = '';
-          }
-        }
         render();
       }
 
       document.addEventListener('keydown', e => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
         const filtered = getFiltered();
         const start = currentPage * PAGE_SIZE;
         const end = start + PAGE_SIZE;
@@ -705,14 +954,12 @@
 
         if (e.key === 'ArrowDown' || e.key === 'j') {
           e.preventDefault();
-          focusedIdx = Math.min(focusedIdx + 1, visible.length - 1);
+          setFocus(Math.min(focusedIdx + 1, visible.length - 1));
           document.getElementById('card-' + focusedIdx)?.scrollIntoView({behavior: 'smooth', block: 'center'});
-          render();
         } else if (e.key === 'ArrowUp' || e.key === 'k') {
           e.preventDefault();
-          focusedIdx = Math.max(focusedIdx - 1, 0);
+          setFocus(Math.max(focusedIdx - 1, 0));
           document.getElementById('card-' + focusedIdx)?.scrollIntoView({behavior: 'smooth', block: 'center'});
-          render();
         } else if (e.key === 'a' || e.key === 'A') {
           if (visible[focusedIdx]) decide(visible[focusedIdx].path, 'accepted');
         } else if (e.key === 'r' || e.key === 'R') {
@@ -725,10 +972,12 @@
           if (card) {
             const poster = card.querySelector('.video-poster');
             if (poster && poster.style.display !== 'none') {
-              poster.click();
+              playItem(poster, focusedIdx);
             } else {
               const video = card.querySelector('.video-player');
-              if (video) video.paused ? video.play() : video.pause();
+              if (video && video.style.display !== 'none') {
+                video.paused ? video.play() : video.pause();
+              }
             }
           }
         }
