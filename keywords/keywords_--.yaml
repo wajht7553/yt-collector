@@ -1,6 +1,6 @@
 # Keywords template
 # Copy this file to keywords_LANG.yaml (e.g., keywords_es.yaml for Spanish)
-# Replace CLASS_1, CLASS_2 with your actual class names from project.yaml
+# Replace CLASS_1, CLASS_2 with your dataset's class names
 # Replace keywords with relevant search terms in your target language
 # Then update project.yaml: keywords_file: "./keywords/keywords_LANG.yaml"
 

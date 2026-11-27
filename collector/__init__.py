@@ -1,1 +1,1 @@
-"""YouTube Video Collection Toolkit - Package."""
+"""YouTube Link Collection Toolkit."""

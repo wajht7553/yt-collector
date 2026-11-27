@@ -4,6 +4,8 @@ __pycache__/
 
 # Large media files (track with Git LFS or exclude)
 data/
+exported_data/
+catalog.sqlite3*
 
 keywords/keywords_*.yaml
 !keywords/keywords_--.yaml

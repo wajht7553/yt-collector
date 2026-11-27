@@ -1,194 +1,148 @@
 #!/usr/bin/env python3
-"""
-YouTube Video Collection Toolkit
+"""Collect, review, and export YouTube links."""
 
-Usage:
-    python collect.py init                              # Scaffold folders
-    python collect.py download --class X                # Download one class
-    python collect.py download --all                    # Download all classes
-    python collect.py download --class X --keyword "q"  # Search specific keyword
-    python collect.py download --class X --url "..."    # Download specific URL
-    python collect.py status                            # Show progress
-    python collect.py review                            # Launch review UI
-    python collect.py dedup                             # Deduplicate references
-    python collect.py clean                             # Move accepted/rejected videos to status folders
-    python collect.py export --dest <path>              # Copy accepted videos to a dataset folder
-"""
-
-import sys
 import argparse
+import random
+import re
+import time
 
-from collector import config as cfg
+from collector import accepted_downloads, catalog, config as cfg, exporter, search
 from collector.reviewer import server
-from collector import downloader, exporter, logger, scaffold
 
 
-def cmd_init(args, config):
-    """Initialize project folder structure."""
-    print(f"\n  Initializing: {config['name']}")
-    scaffold.print_tree(config)
-    created = scaffold.scaffold(config)
-    print(f"\n  Created {len(created)} directories and files.")
-    print("  Edit project.yaml to define download behavior and specify keywords file.")
-    print("  Then run: python collect.py download --class <ClassName>")
+def cmd_collect(args, config, db):
+    if args.cls and args.cls not in config["classes"]:
+        raise ValueError(f"Unknown class: {args.cls}")
+    if args.all and (args.keyword or args.url):
+        raise ValueError("Use --class with --keyword or --url")
+    if args.url:
+        video_id = search.video_id_from_url(args.url)
+        if not video_id:
+            raise ValueError("Provide a YouTube video URL")
+        entries = search.get_metadata(
+            config, search.watch_url(video_id), browser=args.browser, no_cookies=args.no_cookies
+        )
+        videos = search.candidates(config, entries, args.cls, args.url, only_id=video_id)
+        print(f"Saved {catalog.save_videos(db, videos)} new links for {args.cls}.")
+        return
 
-
-def cmd_download(args, config):
-    """Download videos."""
-    scaffold.scaffold(config)
-
-    browser = args.browser or config.get("browser", "chrome")
-    cookies_file = config.get("cookies_file", "")
-    downloader.init(
-        browser=browser, no_cookies=args.no_cookies, cookies_file=cookies_file
-    )
-
-    if args.all:
-        for cls_name in cfg.get_class_names(config):
-            print(f"\n{'='*60}")
-            print(f"  CLASS: {cls_name}")
-            print(f"{'='*60}")
-            downloader.bulk_download(config, cls_name, args.max_per_keyword)
-    elif args.cls:
-        if args.keyword:
-            downloader.download_keyword(
-                config, args.keyword, args.cls, args.max_per_keyword
+    class_names = cfg.get_class_names(config) if args.all else [args.cls]
+    language = config["language"]
+    target = config["target_per_class"]
+    minimum, maximum = config["sleep_interval"]
+    already_searched = False
+    for class_name in class_names:
+        keywords = [args.keyword] if args.keyword else cfg.get_keywords(config, class_name)
+        for keyword in keywords:
+            quota = None
+            if not args.keyword:
+                if catalog.count_active(db, class_name, language) >= target:
+                    break
+                quota = (class_name, language, target)
+            if already_searched and maximum > 0:
+                time.sleep(random.uniform(minimum, maximum))
+            print(f"Searching {class_name} [{language}]: {keyword}")
+            entries = search.get_metadata(
+                config, f"ytsearch{args.max_per_keyword}:{keyword}",
+                browser=args.browser, no_cookies=args.no_cookies,
             )
-        elif args.url:
-            downloader.download_url(config, args.url, args.cls)
-        else:
-            downloader.bulk_download(config, args.cls, args.max_per_keyword)
-    else:
-        print("[ERROR] Specify --class <name> or --all")
-        sys.exit(1)
+            videos = search.candidates(config, entries, class_name, keyword)
+            print(f"  Saved {catalog.save_videos(db, videos, quota=quota)} new links.")
+            already_searched = True
 
 
-def cmd_status(args, config):
-    """Show collection progress."""
-    logger.print_progress(config)
-
-    csv_path = logger.get_csv_path(config)
-    try:
-        import csv
-
-        with open(csv_path, "r", encoding="utf-8") as f:
-            rows = list(csv.DictReader(f))
-        urls = [r["Source_URL"] for r in rows]
-        unique = len(set(urls))
-        print(f"  References: {len(rows)} rows ({unique} unique URLs)")
-        if len(rows) > unique:
-            print(
-                f"  Run 'python collect.py dedup' to remove {len(rows) - unique} duplicates"
-            )
-    except FileNotFoundError:
-        print("  No references yet. Run download first.")
+def cmd_status(config, db):
+    counts = catalog.progress(db)
+    for class_name in cfg.get_class_names(config):
+        counts.setdefault((class_name, config["language"]), dict.fromkeys(catalog.STATUSES, 0))
+    print(f"{config['name']} collection progress")
+    for (class_name, language), statuses in sorted(counts.items()):
+        collected = statuses["pending"] + statuses["accepted"]
+        details = ", ".join(f"{count} {status}" for status, count in statuses.items())
+        print(f"  {class_name} [{language}]: {collected}/{config['target_per_class']} ({details})")
 
 
-def cmd_review(args, config):
-    """Launch review UI."""
-    server.serve(config, port=args.port)
+def language_code(value):
+    if not re.fullmatch(r"[a-zA-Z]{2}|--", value):
+        raise argparse.ArgumentTypeError("Use a two-letter language code such as en or ko")
+    return value.lower()
 
 
-def cmd_dedup(args, config):
-    """Deduplicate references."""
-    stats = logger.deduplicate(config)
-    print(f"\n  Deduplication complete:")
-    print(f"    Before: {stats['before']} rows")
-    print(f"    After:  {stats['after']} rows")
-    print(f"    Removed: {stats['removed']} duplicates")
-
-
-def cmd_clean(args, config):
-    """Move accepted/rejected videos into their status folders."""
-    moved = server.apply_decisions(config)
-    print(f"\n  Moved {moved['accepted']} accepted videos to _accepted/ folders.")
-    print(f"  Moved {moved['rejected']} rejected videos to _rejected/ folders.")
-
-
-def cmd_export(args, config):
-    """Copy accepted videos (and matching metadata) to an external dataset folder"""
-    print(f"\n  Exporting accepted videos to: {args.dest}")
-    stats = exporter.export_dataset(config, args.dest)
-
-    for cls_name, count in sorted(stats["per_class"].items()):
-        print(f"    {cls_name}: {count} copied")
-
-    skip_note = (
-        f", {stats['skipped_existing']} already present (skipped)"
-        if stats["skipped_existing"]
-        else ""
-    )
-    print(f"\n  Done. {stats['copied']} videos copied{skip_note}.")
-    print(
-        f"  Metadata: {stats['metadata_rows']} rows appended to source_references.csv"
-    )
+def positive_int(value):
+    number = int(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("Use an integer greater than zero")
+    return number
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="YouTube Video Collection Toolkit",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+    parser = argparse.ArgumentParser(description="YouTube Link Collection Toolkit")
+    parser.add_argument("--config", default="project.yaml", help="Path to project config")
+    commands = parser.add_subparsers(dest="command", help="Available commands")
+    commands.add_parser("init", help="Create the link catalog")
+
+    collect = commands.add_parser(
+        "collect", aliases=["download"], help="Save YouTube links and metadata"
     )
-    parser.add_argument(
-        "--config", default="project.yaml", help="Path to project config"
+    classes = collect.add_mutually_exclusive_group(required=True)
+    classes.add_argument("--class", dest="cls", help="Target class")
+    classes.add_argument("--all", action="store_true", help="Collect for all configured classes")
+    source = collect.add_mutually_exclusive_group()
+    source.add_argument("--keyword", help="Search for a specific keyword")
+    source.add_argument("--url", help="Save a specific YouTube video URL")
+    collect.add_argument("--max-per-keyword", type=positive_int, default=10, help="Results per keyword")
+    collect.add_argument("--browser", help="Browser for cookies (overrides project.yaml)")
+    collect.add_argument("--no-cookies", action="store_true", help="Skip cookie authentication")
+
+    commands.add_parser("status", help="Show saved links and review progress")
+    review = commands.add_parser("review", help="Open the link review UI")
+    review.add_argument("--port", type=int, default=8765, help="Server port")
+    review.add_argument("--language", type=language_code, help="Load only this collection language")
+
+    export = commands.add_parser("export", help="Export accepted links and metadata to CSV")
+    export.add_argument("--dest", required=True, help="Destination directory")
+    download_accepted = commands.add_parser(
+        "download-accepted", help="Export accepted links and download their videos"
     )
-    sub = parser.add_subparsers(dest="command", help="Available commands")
-
-    # init
-    sub.add_parser("init", help="Create folder structure from config")
-
-    # download
-    dl = sub.add_parser("download", help="Download videos")
-    dl.add_argument("--class", dest="cls", help="Target class name")
-    dl.add_argument("--all", action="store_true", help="Download all classes")
-    dl.add_argument("--keyword", help="Search a specific keyword")
-    dl.add_argument("--url", help="Download a specific URL")
-    dl.add_argument(
-        "--max-per-keyword", type=int, default=10, help="Max videos per keyword"
+    download_accepted.add_argument(
+        "--dest", default="./exported_data",
+        help="Destination directory (default: ./exported_data)",
     )
-    dl.add_argument("--browser", help="Browser for cookies (overrides project.yaml)")
-    dl.add_argument("--no-cookies", action="store_true", help="Skip cookie auth")
-
-    # status
-    sub.add_parser("status", help="Show collection progress")
-
-    # review
-    rv = sub.add_parser("review", help="Launch video review UI")
-    rv.add_argument("--port", type=int, default=8765, help="Server port")
-
-    # dedup
-    sub.add_parser("dedup", help="Deduplicate references CSV")
-
-    # clean
-    sub.add_parser(
-        "clean", help="Move accepted/rejected videos to their status folders"
-    )
-
-    # export
-    exp = sub.add_parser(
-        "export", help="Copy accepted videos to an external dataset folder"
-    )
-    exp.add_argument("--dest", required=True, help="Destination directory")
+    commands.add_parser("dedup", help="Explain automatic link deduplication")
+    commands.add_parser("clean", help="Explain how link review decisions are applied")
 
     args = parser.parse_args()
-
     if not args.command:
         parser.print_help()
-        sys.exit(0)
+        return
 
     config = cfg.load_config(args.config)
+    if args.command == "review":
+        server.serve(config, port=args.port, language=args.language)
+        return
 
-    commands = {
-        "init": cmd_init,
-        "download": cmd_download,
-        "status": cmd_status,
-        "review": cmd_review,
-        "dedup": cmd_dedup,
-        "clean": cmd_clean,
-        "export": cmd_export,
-    }
-
-    commands[args.command](args, config)
+    try:
+        with catalog.connect(config) as db:
+            if args.command == "init":
+                print(f"Link catalog ready in {config['output_dir']}.")
+            elif args.command in ("collect", "download"):
+                cmd_collect(args, config, db)
+            elif args.command == "status":
+                cmd_status(config, db)
+            elif args.command == "export":
+                path, count = exporter.export_dataset(db, args.dest)
+                print(f"Exported {count} accepted links to {path}")
+            elif args.command == "download-accepted":
+                videos = catalog.list_videos(db, status="accepted")
+                path = exporter.write_accepted_csv(videos, args.dest)
+                print(f"Exported {len(videos)} accepted entries to {path}", flush=True)
+                accepted_downloads.download(config, videos, path.parent / "videos")
+            elif args.command == "dedup":
+                print("The catalog deduplicates links by class, language, and YouTube video ID.")
+            elif args.command == "clean":
+                print("Review decisions take effect as soon as they are saved.")
+    except (RuntimeError, ValueError) as exc:
+        parser.exit(1, f"[ERROR] {exc}\n")
 
 
 if __name__ == "__main__":

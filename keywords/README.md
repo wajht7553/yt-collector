@@ -1,57 +1,26 @@
-# Keywords Directory
+# Keyword Files
 
-This directory contains language-specific keyword files for the dataset collection toolkit.
-
-## Files
-
-- **keywords_en.yaml** — English keywords for all dataset classes (currently in use by default)
-- **keywords_template.yaml** — Template for creating new language keyword files
-
-## Structure
-
-Each keyword file is a YAML file mapping class names to lists of search keywords. **The class names you define here become the available dataset classes** — no need to define them elsewhere.
+Use UTF-8 YAML files named `keywords_<language>.yaml`, where the suffix is a two-letter code such as `en`, `es`, or `ko`. Each file maps class names to the search phrases used to find videos in that language. For setup and the first collection run, see the [main quick start](../README.md#quick-start).
 
 ```yaml
 Class_Name:
-  - "search keyword 1"
-  - "search keyword 2"
-  - "search keyword 3"
+  - "first search phrase"
+  - "second search phrase"
 
 Another_Class:
-  - "different keyword 1"
-  - "different keyword 2"
+  - "another search phrase"
 ```
 
-## Creating a New Language File
+Copy the template to a language-specific filename and edit the class names and phrases. Keep class names consistent across files when they refer to the same category. Use spaces for YAML indentation and quotes around phrases. Match the class name exactly in CLI commands, with quotes if it contains spaces. [Keyword template](keywords_--.yaml)
 
-1. **Copy the template:**
-   ```bash
-   cp keywords_template.yaml keywords_es.yaml  # For Spanish, for example
-   ```
+For example, `keywords_ko.yaml` might contain these phrases.
 
-2. **Translate the keywords** to your target language in the new file.
-   - Class names (the top-level keys) can stay the same or be translated.
-   - Keywords (the list items) should be translated for the target language.
+```yaml
+Origami:
+  - "종이배 접는 법"
 
-3. **Update project.yaml** to point to the new language file:
-   ```yaml
-   project:
-     keywords_file: "./keywords/keywords_es.yaml"
-   ```
+Drawing:
+  - "연필로 정육면체 그리는 법"
+```
 
-4. **Run the collector** — it will automatically load keywords from the new file:
-   ```bash
-   python collect.py download --class ClassName
-   ```
-
-## Notes
-
-- Keywords should be simple search phrases (no special characters that break YouTube search)
-- Use ASCII-only characters to avoid encoding issues
-- Each keyword is searched independently, so be specific
-- More keywords = more search results to filter through, but better coverage
-- Keep keywords focused on the class definition to improve video relevance
-
-## Adding More Languages
-
-Just create a new file like `keywords_fr.yaml` for French, `keywords_de.yaml` for German, etc., and update `project.yaml` to switch between them.
+Set `keywords_file` under `project:` to `"./keywords/keywords_ko.yaml"`. When you collect, this file gives the new entries the `ko` label. Open them with `python collect.py review --language ko`. [Collect in another language](../README.md#collect-in-another-language)

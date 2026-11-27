@@ -125,9 +125,15 @@
         border-color: var(--accent-blue);
       }
 
-      .sep {
+      .filter-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .filter-group + .filter-group {
         border-left: 1px solid var(--border);
-        margin: 0 4px;
+        padding-left: 8px;
       }
 
       .progress-bar-bg {
@@ -188,6 +194,7 @@
       .video-poster {
         width: 100%;
         aspect-ratio: 16/9;
+        border: 0;
         background: #000;
         display: flex;
         align-items: center;
@@ -222,9 +229,11 @@
 
       .video-player {
         width: 100%;
-        max-height: 450px;
+        aspect-ratio: 16/9;
+        min-height: 200px;
+        border: 0;
         background: #000;
-        display: none;
+        display: block;
       }
 
       .video-info {
@@ -254,7 +263,13 @@
         font-size: 11px;
         color: var(--text-dim);
         display: flex;
+        align-items: center;
+        flex-wrap: wrap;
         gap: 8px;
+      }
+
+      .source-link {
+        color: var(--accent-blue);
       }
 
       .video-details span {
@@ -329,6 +344,7 @@
       .pagination {
         display: flex;
         justify-content: center;
+        align-items: center;
         flex-wrap: wrap;
         gap: 6px;
         padding: 16px 0 24px;
@@ -351,10 +367,9 @@
         border-color: var(--accent-blue);
         color: var(--text-primary);
       }
-      .page-btn.active {
-        background: var(--accent-blue);
-        color: white;
-        border-color: var(--accent-blue);
+      .page-count {
+        color: var(--text-secondary);
+        font-size: 12px;
       }
       .page-btn:disabled {
         opacity: 0.5;
@@ -371,6 +386,17 @@
         font-size: 22px;
         margin-bottom: 8px;
         color: var(--text-secondary);
+      }
+
+      .message {
+        color: var(--accent-red);
+        max-width: 1000px;
+        padding: 12px 24px 0;
+        margin: 0 auto;
+      }
+
+      .message:empty {
+        display: none;
       }
 
       .keyboard-hint {
@@ -437,6 +463,8 @@
 
     <div class="filters" id="filters"></div>
 
+    <div class="message" id="message" role="alert"></div>
+
     <div class="main" id="video-list"></div>
 
     <div class="pagination" id="pagination"></div>
@@ -455,293 +483,254 @@
 
     <script>
       const PAGE_SIZE = {{PAGE_SIZE}};
+      const MEDIA_ORIGIN = 'https://www.youtube.com';
+      const statuses = ['pending', 'accepted', 'rejected'];
+      const filters = { status: '', class_name: '', language: '' };
+      const list = document.getElementById('video-list');
+      const message = document.getElementById('message');
       let allVideos = [];
-      let decisions = {};
-      let statusFilter = 'all';
-      let classFilter = 'all';
-      let languageFilter = null;
+      let visible = [];
       let currentPage = 0;
       let focusedIdx = 0;
-      let classList = [];
-      let languageList = [];
+      let activePlayer = null;
 
       async function init() {
-        const [vRes, dRes, cRes] = await Promise.all([
+        const [videoResponse, configResponse] = await Promise.all([
           fetch('/api/videos'),
-          fetch('/api/decisions'),
           fetch('/api/config'),
         ]);
-        allVideos = await vRes.json();
-        decisions = await dRes.json();
-        const config = await cRes.json();
-
-        document.getElementById('project-title').textContent = config.name + ' — Review';
-        classList = config.classes;
-        languageList = config.languages || [];
-        languageFilter = languageList.includes(config.language) ? config.language : (languageList[0] || null);
-        buildFilters();
+        if (!videoResponse.ok || !configResponse.ok) {
+          throw new Error('Could not load the review catalog.');
+        }
+        allVideos = await videoResponse.json();
+        const config = await configResponse.json();
+        const languages = [...new Set(allVideos.map(video => video.language))].sort();
+        const classes = [...new Set(allVideos.map(video => video.class_name))].sort();
+        document.getElementById('project-title').textContent = config.name +
+          (config.locked_language ? ' — Review (' + config.locked_language.toUpperCase() + ')' : ' — Review');
+        filters.language = languages.includes(config.language) ? config.language : '';
+        addFilters('status', 'All Statuses', statuses, capitalize);
+        addFilters('class_name', 'All Classes', classes, classLabel);
+        if (!config.locked_language && languages.length > 1) {
+          addFilters('language', 'All Languages', languages, value => value.toUpperCase());
+        }
         render();
       }
 
-      function buildFilters() {
-        const el = document.getElementById('filters');
-        const statusBtns = ['all', 'pending', 'accepted', 'rejected'];
-        let html = statusBtns.map(s =>
-          `<button class="filter-btn ${s === 'all' ? 'active' : ''}" data-filter="status" data-val="${s}">${s[0].toUpperCase()+s.slice(1)}</button>`
-        ).join('');
+      function capitalize(value) {
+        return value[0].toUpperCase() + value.slice(1);
+      }
 
-        html += '<span class="sep"></span>';
-        html += `<button class="filter-btn active" data-filter="class" data-val="all">All Classes</button>`;
-        classList.forEach(c => {
-          html += `<button class="filter-btn" data-filter="class" data-val="${c}">${c.replace(/_/g, ' ')}</button>`;
-        });
+      function classLabel(value) {
+        return value.replace(/_/g, ' ');
+      }
 
-        if (languageList.length > 1) {
-          html += '<span class="sep"></span>';
-          languageList.forEach(l => {
-            const active = l === languageFilter ? 'active' : '';
-            html += `<button class="filter-btn ${active}" data-filter="lang" data-val="${l}">${l.toUpperCase()}</button>`;
+      function element(tag, className, label) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (label) node.textContent = label;
+        return node;
+      }
+
+      function button(className, label, onClick) {
+        const node = element('button', className, label);
+        node.type = 'button';
+        node.addEventListener('click', onClick);
+        return node;
+      }
+
+      function addFilters(key, allLabel, values, format) {
+        const group = element('div', 'filter-group');
+        for (const value of ['', ...values]) {
+          const option = button('filter-btn', value ? format(value) : allLabel, () => {
+            filters[key] = value;
+            for (const sibling of group.children) {
+              const selected = sibling === option;
+              sibling.classList.toggle('active', selected);
+              sibling.setAttribute('aria-pressed', selected);
+            }
+            setPage(0);
           });
+          const selected = filters[key] === value;
+          option.classList.toggle('active', selected);
+          option.setAttribute('aria-pressed', selected);
+          group.append(option);
         }
-
-        el.innerHTML = html;
-        el.addEventListener('click', e => {
-          const btn = e.target.closest('.filter-btn');
-          if (!btn) return;
-          const type = btn.dataset.filter;
-          const val = btn.dataset.val;
-          if (type === 'status') { statusFilter = val; }
-          else if (type === 'class') { classFilter = val; }
-          else if (type === 'lang') { languageFilter = val; }
-          el.querySelectorAll(`.filter-btn[data-filter="${type}"]`).forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          currentPage = 0;
-          render();
-        });
-      }
-
-      function getFiltered() {
-        return allVideos.filter(v => {
-          const st = getStatus(v);
-          if (statusFilter !== 'all' && st !== statusFilter) return false;
-          if (classFilter !== 'all' && v.cls !== classFilter) return false;
-          if (languageFilter && v.lang !== languageFilter) return false;
-          return true;
-        });
-      }
-
-      // Badge counts ignore the status filter (All/Pending/Accepted/Rejected) so the
-      // four numbers stay stable while only the list below changes. They still scope
-      // to the selected class and language.
-      function getBadgeScope() {
-        return allVideos.filter(v => {
-          if (classFilter !== 'all' && v.cls !== classFilter) return false;
-          if (languageFilter && v.lang !== languageFilter) return false;
-          return true;
-        });
+        document.getElementById('filters').append(group);
       }
 
       function render() {
-        const filtered = getFiltered();
-        updateStats(getBadgeScope());
+        const scoped = allVideos.filter(video =>
+          (!filters.class_name || video.class_name === filters.class_name) &&
+          (!filters.language || video.language === filters.language)
+        );
+        const filtered = filters.status
+          ? scoped.filter(video => video.status === filters.status)
+          : scoped;
+        updateStats(scoped);
+
         const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-        if (currentPage > pageCount - 1) currentPage = pageCount - 1;
+        currentPage = Math.min(currentPage, pageCount - 1);
         const start = currentPage * PAGE_SIZE;
-        const end = start + PAGE_SIZE;
-        const visible = filtered.slice(start, end);
-        if (focusedIdx >= visible.length) focusedIdx = Math.max(0, visible.length - 1);
+        visible = filtered.slice(start, start + PAGE_SIZE);
+        focusedIdx = Math.min(focusedIdx, Math.max(0, visible.length - 1));
 
-        const container = document.getElementById('video-list');
-        if (visible.length === 0) {
-          container.innerHTML = '<div class="empty-state"><h2>No videos</h2><p>No videos match the current filter.</p></div>';
-          renderPagination(0, 0);
-          return;
+        activePlayer = null;
+        if (visible.length) {
+          list.replaceChildren(...visible.map(renderCard));
+        } else {
+          const empty = element('div', 'empty-state');
+          empty.append(element('h2', '', 'No videos match the current filters.'));
+          list.replaceChildren(empty);
         }
-
-        container.innerHTML = visible.map((v, i) => {
-          const st = getStatus(v);
-          const stClass = st !== 'pending' ? st : '';
-          const focus = i === focusedIdx ? ' focused' : '';
-          const tag = st !== 'pending' ? `<span class="status-tag ${st}">${st}</span>` : '';
-          const btns = st === 'pending'
-            ? `<button class="btn btn-accept" onclick="decide('${esc(v.path)}','accepted')">&#10003; Accept</button>
-               <button class="btn btn-reject" onclick="decide('${esc(v.path)}','rejected')">&#10007; Reject</button>`
-            : `<button class="btn btn-undo" onclick="decide('${esc(v.path)}','pending')">&#8634; Undo</button>`;
-
-          return `
-            <div class="video-card ${stClass}${focus}" id="card-${i}" data-idx="${i}">
-              <div class="video-poster" onclick="playVideo(this, '${esc(v.path)}')">
-                <div class="play-icon"></div>
-              </div>
-              <video class="video-player" controls preload="none"></video>
-              <div class="video-info">
-                <div class="video-meta">
-                  <div class="video-name">${v.name}${tag}</div>
-                  <div class="video-details">
-                    <span>${v.cls.replace(/_/g, ' ')}</span>
-                    <span>${(v.lang || '').toUpperCase()}</span>
-                    <span>${v.size_mb} MB</span>
-                  </div>
-                </div>
-                <div class="video-actions">${btns}</div>
-              </div>
-            </div>`;
-        }).join('');
-
-        renderPagination(pageCount, currentPage);
+        renderPagination(pageCount);
       }
 
-      function esc(p) { return p.replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+      function renderCard(video, idx) {
+        const title = video.title || video.video_id;
+        const card = element('article', 'video-card ' + video.status);
+        if (idx === focusedIdx) card.classList.add('focused');
+        card.addEventListener('click', () => setFocus(idx));
 
-      function playVideo(poster, path) {
-        const card = poster.closest('.video-card');
-        const video = card.querySelector('.video-player');
-        poster.style.display = 'none';
-        video.style.display = 'block';
-        video.src = '/video/' + encodeURIComponent(path);
-        video.play();
+        const play = button('video-poster', '', () => playVideo(play, video));
+        play.setAttribute('aria-label', 'Play ' + title);
+        play.append(element('span', 'play-icon'));
+
+        const info = element('div', 'video-info');
+        const meta = element('div', 'video-meta');
+        const heading = element('div', 'video-name', title);
+        heading.title = title;
+        if (video.status !== 'pending') {
+          heading.append(element('span', 'status-tag ' + video.status, video.status));
+        }
+        const details = element('div', 'video-details');
+        const duration = formatDuration(video.duration);
+        for (const detail of [classLabel(video.class_name), video.language.toUpperCase(), video.channel, duration]) {
+          if (detail) details.append(element('span', '', detail));
+        }
+        const source = element('a', 'source-link', 'Open on YouTube');
+        source.href = MEDIA_ORIGIN + '/watch?v=' + encodeURIComponent(video.video_id);
+        source.target = '_blank';
+        source.rel = 'noopener';
+        details.append(source);
+        meta.append(heading, details);
+
+        const actions = element('div', 'video-actions');
+        if (video.status === 'pending') {
+          actions.append(
+            button('btn btn-accept', 'Accept', () => decide(video, 'accepted')),
+            button('btn btn-reject', 'Reject', () => decide(video, 'rejected'))
+          );
+        } else {
+          actions.append(button('btn btn-undo', 'Undo', () => decide(video, 'pending')));
+        }
+        info.append(meta, actions);
+        card.append(play, info);
+        return card;
+      }
+
+      function formatDuration(duration) {
+        if (!Number.isFinite(duration) || duration <= 0) return '';
+        const seconds = Math.floor(duration);
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor(seconds / 60) % 60;
+        const remainder = String(seconds % 60).padStart(2, '0');
+        return hours
+          ? hours + ':' + String(minutes).padStart(2, '0') + ':' + remainder
+          : minutes + ':' + remainder;
+      }
+
+      function playVideo(button, video) {
+        if (activePlayer) activePlayer.frame.replaceWith(activePlayer.button);
+        const frame = element('iframe', 'video-player');
+        frame.title = video.title || 'YouTube video';
+        frame.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+        frame.allowFullscreen = true;
+        frame.referrerPolicy = 'strict-origin-when-cross-origin';
+        frame.src = MEDIA_ORIGIN + '/embed/' + encodeURIComponent(video.video_id) + '?autoplay=1';
+        button.replaceWith(frame);
+        activePlayer = { frame, button };
       }
 
       function setFocus(idx) {
-        const next = document.getElementById('card-' + idx);
-        if (!next) return;
-        const prev = document.getElementById('card-' + focusedIdx);
-        if (prev) prev.classList.remove('focused');
+        list.children[focusedIdx]?.classList.remove('focused');
         focusedIdx = idx;
-        next.classList.add('focused');
+        list.children[idx]?.classList.add('focused');
       }
 
-      function pageButton(page, label, isActive, isDisabled) {
-        const cls = isActive ? 'page-btn active' : 'page-btn';
-        const disabledAttr = isDisabled ? 'disabled' : '';
-        const clickAttr = isDisabled ? '' : `onclick="setPage(${page})"`;
-        return `<button class="${cls}" ${clickAttr} ${disabledAttr}>${label}</button>`;
-      }
-
-      function renderPagination(pageCount, activePage) {
-        const el = document.getElementById('pagination');
-        if (pageCount <= 1) {
-          el.innerHTML = '';
-          return;
-        }
-        const lastPage = pageCount - 1;
-        const showPrev = activePage > 1;
-        const showNext = activePage < lastPage - 1;
-        let html = '';
-
-        html += pageButton(0, '1', activePage === 0, activePage === 0);
-        if (showPrev) {
-          html += pageButton(activePage - 1, '&lt;', false, false);
-        }
-        if (activePage !== 0 && activePage !== lastPage) {
-          html += pageButton(activePage, String(activePage + 1), true, true);
-        }
-        if (showNext) {
-          html += pageButton(activePage + 1, '&gt;', false, false);
-        }
-        if (lastPage !== 0) {
-          html += pageButton(lastPage, String(lastPage + 1), activePage === lastPage, activePage === lastPage);
-        }
-
-        el.innerHTML = html;
+      function renderPagination(pageCount) {
+        const pagination = document.getElementById('pagination');
+        pagination.replaceChildren();
+        if (pageCount <= 1) return;
+        const prev = button('page-btn', 'Previous', () => setPage(currentPage - 1));
+        const next = button('page-btn', 'Next', () => setPage(currentPage + 1));
+        prev.disabled = currentPage === 0;
+        next.disabled = currentPage === pageCount - 1;
+        pagination.append(prev, element('span', 'page-count', (currentPage + 1) + ' / ' + pageCount), next);
       }
 
       function setPage(page) {
         currentPage = page;
         focusedIdx = 0;
+        render();
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        render();
       }
 
-      function updateStats() {
-        let a = 0, r = 0, p = 0;
-        const scope = arguments.length ? arguments[0] : allVideos;
-        scope.forEach(v => {
-          const s = getStatus(v);
-          if (s === 'accepted') a++;
-          else if (s === 'rejected') r++;
-          else p++;
-        });
-        document.getElementById('s-pending').textContent = p;
-        document.getElementById('s-accepted').textContent = a;
-        document.getElementById('s-rejected').textContent = r;
+      function updateStats(scope) {
+        const counts = { pending: 0, accepted: 0, rejected: 0 };
+        for (const video of scope) counts[video.status]++;
+        for (const status of statuses) document.getElementById('s-' + status).textContent = counts[status];
         document.getElementById('s-total').textContent = scope.length;
-        const reviewed = a + r;
+        const reviewed = counts.accepted + counts.rejected;
         document.getElementById('progress-bar').style.width =
-          (scope.length > 0 ? reviewed / scope.length * 100 : 0) + '%';
+          (scope.length ? reviewed / scope.length * 100 : 0) + '%';
       }
 
-      function getStatus(v) {
-        return decisions[v.path] || v.status_hint || 'pending';
-      }
-
-      async function decide(path, status) {
-        const res = await fetch('/api/decide', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({path, status}),
-        });
-        const { path: newPath } = await res.json();
-
-        delete decisions[path];
-        if (status !== 'pending') decisions[newPath] = status;
-
-        if (newPath !== path) {
-          const video = allVideos.find(v => v.path === path);
-          if (video) {
-            video.path = newPath;
-            video.status_hint = '';
-          }
+      async function decide(video, status) {
+        if (video.saving || video.status === status) return;
+        video.saving = true;
+        message.textContent = '';
+        try {
+          const response = await fetch('/api/decide', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              class_name: video.class_name,
+              language: video.language,
+              video_id: video.video_id,
+              status,
+            }),
+          });
+          if (!response.ok) throw new Error('Could not save the review decision. Try again.');
+          video.status = (await response.json()).status;
+          render();
+        } catch (error) {
+          message.textContent = error.message;
+        } finally {
+          video.saving = false;
         }
-        render();
       }
 
-      document.addEventListener('keydown', e => {
-        const filtered = getFiltered();
-        const start = currentPage * PAGE_SIZE;
-        const end = start + PAGE_SIZE;
-        const visible = filtered.slice(start, end);
-        if (!visible.length) return;
-
-        if (e.key === 'ArrowDown' || e.key === 'j') {
-          e.preventDefault();
-          focusedIdx = Math.min(focusedIdx + 1, visible.length - 1);
-          document.getElementById('card-' + focusedIdx)?.scrollIntoView({behavior: 'smooth', block: 'center'});
-          render();
-        } else if (e.key === 'ArrowUp' || e.key === 'k') {
-          e.preventDefault();
-          focusedIdx = Math.max(focusedIdx - 1, 0);
-          document.getElementById('card-' + focusedIdx)?.scrollIntoView({behavior: 'smooth', block: 'center'});
-          render();
-        } else if (e.key === 'a' || e.key === 'A') {
-          if (visible[focusedIdx]) decide(visible[focusedIdx].path, 'accepted');
-        } else if (e.key === 'r' || e.key === 'R') {
-          if (visible[focusedIdx]) decide(visible[focusedIdx].path, 'rejected');
-        } else if (e.key === 'u' || e.key === 'U') {
-          if (visible[focusedIdx]) decide(visible[focusedIdx].path, 'pending');
-        } else if (e.key === ' ') {
-          e.preventDefault();
-          const card = document.getElementById('card-' + focusedIdx);
-          if (card) {
-            const poster = card.querySelector('.video-poster');
-            if (poster && poster.style.display !== 'none') {
-              poster.click();
-            } else {
-              const video = card.querySelector('.video-player');
-              if (video) video.paused ? video.play() : video.pause();
-            }
-          }
+      document.addEventListener('keydown', event => {
+        if (event.altKey || event.ctrlKey || event.metaKey ||
+            event.target.closest('input, select, textarea')) return;
+        const video = visible[focusedIdx];
+        if (!video) return;
+        const key = event.key.toLowerCase();
+        if (['arrowdown', 'j', 'arrowup', 'k'].includes(key)) {
+          event.preventDefault();
+          const direction = key === 'arrowdown' || key === 'j' ? 1 : -1;
+          setFocus(Math.max(0, Math.min(visible.length - 1, focusedIdx + direction)));
+          list.children[focusedIdx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (key === 'a' || key === 'r' || key === 'u') {
+          decide(video, { a: 'accepted', r: 'rejected', u: 'pending' }[key]);
+        } else if (key === ' ' && !event.target.closest('a, button')) {
+          event.preventDefault();
+          list.children[focusedIdx].querySelector('.video-poster')?.click();
         }
       });
 
-      document.getElementById('video-list').addEventListener('click', e => {
-        const card = e.target.closest('.video-card');
-        if (!card) return;
-        const idx = Number(card.dataset.idx);
-        if (!Number.isNaN(idx)) setFocus(idx);
-      });
-
-      init();
+      init().catch(error => { message.textContent = error.message; });
     </script>
   </body>
 </html>
